@@ -7,7 +7,7 @@ import re
 import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 class RuleError(ValueError):
@@ -75,9 +75,13 @@ def _check_destination(name: str, destination: str) -> None:
     unknown = set(_PLACEHOLDER.findall(destination)) - PLACEHOLDERS
     if unknown:
         raise RuleError(f"rule {name!r}: unknown placeholder {{{sorted(unknown)[0]}}} in destination")
-    path = Path(destination)
-    # Destinations stay inside the folder being organized.
-    if path.is_absolute() or path.drive or ".." in path.parts or not destination.strip():
+    # Destinations stay inside the folder being organized. They are checked by both Windows
+    # and Unix rules, so a rules file means the same everywhere: "/etc" has no drive letter
+    # but on Windows still points at the root of the current drive.
+    escapes = any(
+        p.anchor or ".." in p.parts for p in (PurePosixPath(destination), PureWindowsPath(destination))
+    )
+    if escapes or not destination.strip():
         raise RuleError(f"rule {name!r}: destination must be a folder inside the organized folder")
 
 

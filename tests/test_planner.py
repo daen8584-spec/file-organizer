@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.planner import make_plan
+from file_organizer.planner import PlanError, make_plan
 from file_organizer.rules import default_rules, rule_from_dict
 
 from .conftest import MakeFile
@@ -26,10 +26,11 @@ def test_plans_moves_by_type_and_year(tmp_path: Path, make_file: MakeFile) -> No
     make_file("Screenshot 1.png")
     make_file("notes.unknown")
 
+    # Alphabetical ignoring case, on every system.
     assert plan_pairs(tmp_path) == [
-        ("Screenshot 1.png", "Images/Screenshots/Screenshot 1.png"),
         ("beach.jpg", "Images/2024/beach.jpg"),
         ("report.pdf", "Documents/report.pdf"),
+        ("Screenshot 1.png", "Images/Screenshots/Screenshot 1.png"),
         ("song.mp3", "Audio/song.mp3"),
     ]
     assert [p.name for p in make_plan(tmp_path, default_rules()).unmatched] == ["notes.unknown"]
@@ -75,3 +76,16 @@ def test_plan_does_not_change_anything(tmp_path: Path, make_file: MakeFile) -> N
     before = sorted(p.name for p in tmp_path.iterdir())
     make_plan(tmp_path, default_rules())
     assert sorted(p.name for p in tmp_path.iterdir()) == before
+
+
+def test_refuses_a_destination_that_links_outside(tmp_path: Path, make_file: MakeFile) -> None:
+    root = tmp_path / "root"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    make_file("root/report.pdf")
+    try:
+        (root / "Documents").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symbolic links are not available")
+    with pytest.raises(PlanError, match="leads outside"):
+        make_plan(root, default_rules())

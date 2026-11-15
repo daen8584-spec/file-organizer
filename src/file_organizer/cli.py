@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import __version__
 from .journal import JournalError, run_plan, undo_last
-from .planner import Plan, make_plan
+from .planner import Plan, PlanError, make_plan
 from .rules import DEFAULT_RULES_TOML, Rule, RuleError, default_rules, load_rules
 
 RULES_FILE = ".fileorg.toml"
@@ -150,7 +150,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for path, error in result.failed:
             print(f"  Could not move {path.name}: {error}", file=sys.stderr)
         return 1 if result.failed else 0
-    except (RuleError, JournalError) as error:
+    except (RuleError, JournalError, PlanError) as error:
         print(f"fileorg: {error}", file=sys.stderr)
         return 1
 

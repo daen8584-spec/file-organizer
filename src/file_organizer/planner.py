@@ -25,6 +25,15 @@ class Plan:
     unmatched: list[Path]
 
 
+class PlanError(ValueError):
+    """A destination would lead outside the organized folder."""
+
+
+def _sort_key(path: Path) -> tuple[str, str]:
+    """Alphabetical ignoring case, then exact name: the same order on every system."""
+    return (path.as_posix().casefold(), path.as_posix())
+
+
 def _free_name(target: Path, taken: set[str]) -> Path:
     """The target, or "name (2).ext", "name (3).ext"... if that name is used or planned.
 
@@ -58,7 +67,7 @@ def _files(root: Path, recursive: bool, skip_top: set[str]) -> list[Path]:
     pending = [root]
     while pending:
         folder = pending.pop()
-        for entry in sorted(folder.iterdir(), key=lambda p: p.name):
+        for entry in sorted(folder.iterdir(), key=_sort_key):
             if entry.name.startswith(".") or entry.is_symlink():
                 continue
             if entry.is_dir():
@@ -66,7 +75,7 @@ def _files(root: Path, recursive: bool, skip_top: set[str]) -> list[Path]:
                     pending.append(entry)
             elif entry.is_file():
                 found.append(entry)
-    return sorted(found)
+    return sorted(found, key=_sort_key)
 
 
 def make_plan(root: Path, rules: list[Rule], recursive: bool = False, now: datetime | None = None) -> Plan:
@@ -86,6 +95,10 @@ def make_plan(root: Path, rules: list[Rule], recursive: bool = False, now: datet
             unmatched.append(path)
             continue
         folder = root / rule.target_folder(info)
+        # A destination folder that is a link to somewhere else would move files out of
+        # the organized folder.
+        if not folder.resolve().is_relative_to(root):
+            raise PlanError(f"rule {rule.name!r}: {folder.relative_to(root).as_posix()} leads outside {root}")
         if path.parent == folder:
             continue  # already in place
         destination = _free_name(folder / path.name, taken)

@@ -8,20 +8,20 @@ A command-line tool that tidies a messy folder, like Downloads, by sorting files
 $ fileorg plan ~/Downloads
 12 files to move in /home/me/Downloads (built-in rules):
 
+  budget.xlsx                ->  Documents/Spreadsheets/budget.xlsx
   IMG_2041.jpg               ->  Images/2025/IMG_2041.jpg
   IMG_2042.jpg               ->  Images/2026/IMG_2042.jpg
   Invoice-March.PDF          ->  Documents/Invoice-March.PDF
-  Screenshot 2026-03-02.png  ->  Images/Screenshots/Screenshot 2026-03-02.png
-  budget.xlsx                ->  Documents/Spreadsheets/budget.xlsx
   invoice-march.pdf          ->  Documents/invoice-march (2).pdf
   notes.txt                  ->  Documents/notes.txt
   photos.zip                 ->  Archives/photos.zip
+  Screenshot 2026-03-02.png  ->  Images/Screenshots/Screenshot 2026-03-02.png
   script.py                  ->  Code/script.py
   setup.exe                  ->  Installers/setup.exe
   slides.pptx                ->  Documents/Presentations/slides.pptx
   song.mp3                   ->  Audio/song.mp3
 
-Documents: 3, Images: 2, Screenshots: 1, Spreadsheets: 1, Archives: 1, Code: 1, Installers: 1, Presentations: 1, Audio: 1
+Documents: 3, Images: 2, Spreadsheets: 1, Archives: 1, Screenshots: 1, Code: 1, Installers: 1, Presentations: 1, Audio: 1
 1 file matches no rule and stays where it is.
 
 $ fileorg run ~/Downloads
@@ -75,6 +75,7 @@ All the conditions in a rule must match. Mistakes are explained instead of guess
 ## Safety
 
 - **Plan first.** `plan` reads the folder and changes nothing.
+- **Stays inside the folder.** Destinations like `/etc`, `C:/Windows` or `../elsewhere` are refused, checked by both Windows and Unix rules so a rules file means the same everywhere. A destination folder that is a link to somewhere else is refused too.
 - **No overwriting.** If a name is taken, the file becomes `name (2).ext`. Names are compared ignoring case, as macOS and Windows do, so a folder organized on Linux stays valid when synced to those systems.
 - **Left alone:** hidden files, symbolic links and, unless `--recursive` is given, subfolders. With `--recursive`, folders the rules sort into are skipped, so organized files aren't organized again.
 - **Undo, even after a crash.** Every move is recorded in `.fileorg/journal.jsonl` before it happens and confirmed after. If a run is interrupted, undo finds the files that moved from where they are now. If another file has taken an original name in the meantime, the moved file comes back as `name (2).ext` instead of replacing it.
@@ -84,14 +85,19 @@ All the conditions in a rule must match. Mistakes are explained instead of guess
 
 ```bash
 pip install -e ".[dev]"
-pytest          # 43 tests
+pytest          # 47 tests
 ruff check .
 mypy            # strict
 ```
 
 CI runs the tests on Linux, macOS and Windows with Python 3.11 and 3.13, then runs the installed `fileorg` command on a real folder.
 
-The tests found two bugs before release: a rule with `destination = "."` crashed the planner, and on Linux a file could be planned next to an existing one whose name differed only in case. Both are fixed and covered by tests.
+The tests found four bugs before release, all fixed and covered by tests:
+
+- A rule with `destination = "."` crashed the planner.
+- On Linux, a file could be planned next to an existing one whose name differed only in case.
+- On Windows (found by CI), `/etc` passed the "inside the folder" check, because without a drive letter Python doesn't treat it as absolute, yet Windows reads it as the root of the current drive.
+- On Windows (found by CI), plans were listed in a different order, because Windows sorts paths ignoring case. Plans now use the same order everywhere.
 
 ## License
 
